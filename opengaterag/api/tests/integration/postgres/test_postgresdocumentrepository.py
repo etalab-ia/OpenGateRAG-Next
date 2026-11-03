@@ -1,9 +1,95 @@
+from sqlalchemy import select
+
 from opengaterag.api.domain.collection.entities import CollectionVisibility
 from opengaterag.api.domain.document.entities import Document
 from opengaterag.api.domain.document.errors import DocumentNotFoundError
 from opengaterag.api.infrastructure.postgres import PostgresDocumentRepository
 from opengaterag.api.infrastructure.postgres.models import Collection as CollectionTable
 from opengaterag.api.infrastructure.postgres.models import Document as DocumentTable
+
+
+async def _add_collection(db_session, user_id: int = 42) -> int:
+    collection = CollectionTable(user_id=user_id, name="my-collection", description=None, visibility=CollectionVisibility.PRIVATE)
+    db_session.add(collection)
+    await db_session.flush()
+
+    return collection.id
+
+
+class TestCreateDocument:
+    async def test_should_persist_document_with_its_size_chunks_and_metadata(self, db_session):
+        # Arrange
+        repository = PostgresDocumentRepository(postgres_session=db_session)
+        collection_id = await _add_collection(db_session)
+
+        # Act
+        document = await repository.create_document(collection_id=collection_id, name="report.md", size=120, chunks=3, metadata={"source_title": "Report", "year": 2030})  # fmt: off
+
+        # Assert
+        assert isinstance(document, Document)
+        assert document.chunks == 3
+        assert document.metadata == {"source_title": "Report", "year": 2030}
+        assert document.created.tzinfo is not None
+        assert await db_session.scalar(select(DocumentTable.size).where(DocumentTable.id == document.id)) == 120
+
+
+class TestGetUsedStorage:
+    async def test_should_sum_document_sizes_across_collections_of_user_only(self, db_session):
+        # Arrange
+        repository = PostgresDocumentRepository(postgres_session=db_session)
+        first_collection_id = await _add_collection(db_session, user_id=42)
+        second_collection_id = await _add_collection(db_session, user_id=42)
+        other_user_collection_id = await _add_collection(db_session, user_id=43)
+        db_session.add_all(
+            [
+                DocumentTable(collection_id=first_collection_id, name="a.md", size=10),
+                DocumentTable(collection_id=second_collection_id, name="b.md", size=5),
+                DocumentTable(collection_id=other_user_collection_id, name="c.md", size=100),
+            ]
+        )
+        await db_session.flush()
+
+        # Act
+        used_storage = await repository.get_used_storage(user_id=42)
+
+        # Assert
+        assert used_storage == 15
+
+    async def test_should_return_zero_when_user_has_no_documents(self, db_session):
+        # Arrange
+        repository = PostgresDocumentRepository(postgres_session=db_session)
+
+        # Act
+        used_storage = await repository.get_used_storage(user_id=999_999)
+
+        # Assert
+        assert used_storage == 0
+
+
+class TestDeleteDocument:
+    async def test_should_delete_document(self, db_session):
+        # Arrange
+        repository = PostgresDocumentRepository(postgres_session=db_session)
+        document = DocumentTable(collection_id=await _add_collection(db_session), name="report.md")
+        db_session.add(document)
+        await db_session.flush()
+
+        # Act
+        result = await repository.delete_document(document_id=document.id)
+
+        # Assert
+        assert result is None
+        assert await db_session.scalar(select(DocumentTable.id).where(DocumentTable.id == document.id)) is None
+
+    async def test_should_return_document_not_found_error_when_document_does_not_exist(self, db_session):
+        # Arrange
+        repository = PostgresDocumentRepository(postgres_session=db_session)
+
+        # Act
+        result = await repository.delete_document(document_id=999_999)
+
+        # Assert
+        assert result == DocumentNotFoundError()
 
 
 class TestGetDocument:

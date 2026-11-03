@@ -18,7 +18,7 @@ COLLECTION_ID = 7
 DOCUMENT_ID = 42
 NOW = datetime(2030, 1, 1, tzinfo=UTC)
 
-DOCUMENT = Document(id=DOCUMENT_ID, collection_id=COLLECTION_ID, name="document.pdf", created=NOW)
+DOCUMENT = Document(id=DOCUMENT_ID, collection_id=COLLECTION_ID, name="document.pdf", chunks=1, metadata={}, created=NOW)
 
 
 def _collection_view(visibility: CollectionVisibility) -> CollectionView:
