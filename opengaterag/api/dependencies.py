@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from opengaterag.api.domain.user import AuthenticatedUserQuery
 from opengaterag.api.infrastructure.configuration import Configuration, get_configuration
 from opengaterag.api.infrastructure.context import global_context
+from opengaterag.api.infrastructure.meilisearch import MeilisearchChunkIndex
 from opengaterag.api.infrastructure.opengatellm import OpenGateLLMAuthenticatedUserQuery
 from opengaterag.api.infrastructure.postgres import (
     PostgresCollectionQuery,
@@ -13,6 +14,7 @@ from opengaterag.api.infrastructure.postgres import (
     PostgresDocumentRepository,
     PostgresUserRepository,
 )
+from opengaterag.api.infrastructure.text import LangChainTextSplitter, MarkdownDocumentParser, TiktokenTokenizer
 from opengaterag.api.use_cases.collections import (
     CreateCollectionUseCase,
     DeleteCollectionUseCase,
@@ -20,7 +22,7 @@ from opengaterag.api.use_cases.collections import (
     GetOneCollectionUseCase,
     UpdateCollectionUseCase,
 )
-from opengaterag.api.use_cases.documents import GetDocumentsUseCase, GetOneDocumentUseCase
+from opengaterag.api.use_cases.documents import CreateDocumentUseCase, GetDocumentsUseCase, GetOneDocumentUseCase
 
 
 async def get_postgres_session() -> AsyncGenerator[AsyncSession]:
@@ -34,6 +36,13 @@ async def get_postgres_session() -> AsyncGenerator[AsyncSession]:
             if postgres_session.in_transaction():
                 await postgres_session.rollback()
             raise
+
+
+async def get_autocommit_postgres_session() -> AsyncGenerator[AsyncSession]:
+    """Commit every statement as it runs, so that no transaction stays open while a use case waits on Meilisearch."""
+    session_factory = global_context.autocommit_postgres_session_factory
+    async with session_factory() as postgres_session:
+        yield postgres_session
 
 
 def get_authenticated_user_query() -> AuthenticatedUserQuery:
@@ -75,6 +84,29 @@ def delete_collection_use_case_factory(postgres_session: AsyncSession = Depends(
 
 
 # document use cases
+def create_document_use_case_factory(
+    postgres_session: AsyncSession = Depends(get_autocommit_postgres_session),
+    configuration: Configuration = Depends(get_configuration),
+) -> CreateDocumentUseCase:
+    settings = configuration.settings
+    meilisearch = configuration.dependencies.meilisearch
+
+    return CreateDocumentUseCase(
+        collection_query=PostgresCollectionQuery(postgres_session=postgres_session),
+        user_repository=PostgresUserRepository(postgres_session=postgres_session),
+        document_repository=PostgresDocumentRepository(postgres_session=postgres_session),
+        document_parser=MarkdownDocumentParser(),
+        tokenizer=TiktokenTokenizer(encoding_name=settings.storage_compute_tokenizer.removeprefix("tiktoken_")),
+        text_splitter=LangChainTextSplitter(chunk_max_characters=settings.chunk_max_characters),
+        chunk_index=MeilisearchChunkIndex(
+            meilisearch_client=global_context.meilisearch_client,
+            index_name=meilisearch.index_name,
+            task_timeout=meilisearch.task_timeout,
+        ),
+        storage_default_limit=settings.storage_default_limit,
+    )
+
+
 def get_documents_use_case_factory(postgres_session: AsyncSession = Depends(get_postgres_session)) -> GetDocumentsUseCase:
     return GetDocumentsUseCase(
         document_repository=PostgresDocumentRepository(postgres_session=postgres_session),
