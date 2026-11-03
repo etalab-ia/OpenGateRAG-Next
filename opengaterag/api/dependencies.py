@@ -20,7 +20,7 @@ from opengaterag.api.use_cases.collections import (
     GetOneCollectionUseCase,
     UpdateCollectionUseCase,
 )
-from opengaterag.api.use_cases.documents import GetOneDocumentUseCase
+from opengaterag.api.use_cases.documents import GetDocumentsUseCase, GetOneDocumentUseCase
 
 
 async def get_postgres_session() -> AsyncGenerator[AsyncSession]:
@@ -75,6 +75,13 @@ def delete_collection_use_case_factory(postgres_session: AsyncSession = Depends(
 
 
 # document use cases
+def get_documents_use_case_factory(postgres_session: AsyncSession = Depends(get_postgres_session)) -> GetDocumentsUseCase:
+    return GetDocumentsUseCase(
+        document_repository=PostgresDocumentRepository(postgres_session=postgres_session),
+        collection_query=PostgresCollectionQuery(postgres_session=postgres_session),
+    )
+
+
 def get_one_document_use_case_factory(postgres_session: AsyncSession = Depends(get_postgres_session)) -> GetOneDocumentUseCase:
     return GetOneDocumentUseCase(
         document_repository=PostgresDocumentRepository(postgres_session=postgres_session),
