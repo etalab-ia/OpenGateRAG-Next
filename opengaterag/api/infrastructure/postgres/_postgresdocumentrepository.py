@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from opengaterag.api.domain.document import DocumentRepository
@@ -19,3 +19,10 @@ class PostgresDocumentRepository(DocumentRepository):
             return DocumentNotFoundError()
 
         return Document.model_validate(row, from_attributes=True)
+
+    async def get_documents(self, collection_id: int, offset: int, limit: int) -> tuple[list[Document], int]:
+        total = await self.postgres_session.scalar(select(func.count()).select_from(DocumentTable).where(DocumentTable.collection_id == collection_id))  # fmt: off
+        statement = select(DocumentTable).where(DocumentTable.collection_id == collection_id).order_by(DocumentTable.id).offset(offset).limit(limit)  # fmt: off
+        rows = (await self.postgres_session.execute(statement)).scalars().all()
+
+        return [Document.model_validate(row, from_attributes=True) for row in rows], total
