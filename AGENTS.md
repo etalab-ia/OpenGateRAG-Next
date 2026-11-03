@@ -16,7 +16,7 @@ opengaterag/api/
   use_cases/<area>/    Command, UseCase, UseCaseSuccess, execute()
   infrastructure/
     fastapi/           endpoints, schemas, HTTP exceptions, AccessController, routes.py (RouterName, EndpointRoute)
-    postgres/          models.py, Postgres*Repository / Postgres*Query, AutocommitSession
+    postgres/          models.py, Postgres*Repository / Postgres*Query
     meilisearch/       MeilisearchChunkIndex, index bootstrap, filter builder
     opengatellm/       OpenGateLLMAuthenticatedUserQuery (GET /v1/me)
     text/              document parser (PyMuPDF, html-to-markdown), text splitter (LangChain), tokenizer (tiktoken)
@@ -162,16 +162,22 @@ The first slice of each pattern. Copy it when adding the same kind of code. Path
 | Unit domain test | `tests/unit/domain/collection/test_collectionentities.py` |
 | Integration endpoint / Postgres tests | `tests/integration/endpoints/test_get_one_collection.py`, `tests/integration/postgres/` |
 | Meilisearch index bootstrap | `infrastructure/meilisearch/_meilisearchindexbootstrap.py` |
+| Use case writing to Postgres and Meilisearch | `use_cases/documents/_createdocumentusecase.py` (storage check before any write, compensation when embedding fails) |
+| Meilisearch adapter (task wait, `error.code` mapping) | `infrastructure/meilisearch/_meilisearchchunkindex.py` |
+| Text adapters (parser, splitter, tokenizer) | `infrastructure/text/` |
+| Multipart endpoint | `create_document` in `infrastructure/fastapi/endpoints/documents.py` (`CreateDocumentBody` declared with `File`, metadata as a JSON form field) |
+| DI factory on the autocommit session | `create_document_use_case_factory` in `dependencies.py` |
+| Integration Meilisearch test | `tests/integration/meilisearch/test_meilisearchchunkindex.py` |
 
 ---
 
 ## Tests
 
-`.github/workflows/run_tests.yml` runs two jobs on pull requests: unit (which also writes the coverage badge `.github/badges/coverage.json`: CI writes that file, never edit it by hand) and integration (Postgres from `compose.example.yml`; add Meilisearch with its first slice).
+`.github/workflows/run_tests.yml` runs two jobs on pull requests: unit (which also writes the coverage badge `.github/badges/coverage.json`: CI writes that file, never edit it by hand) and integration (Postgres and Meilisearch from `compose.example.yml`).
 
 > **TODO: no e2e job yet.** The e2e OpenGateLLM (`.github/tests/config.opengatellm.yml`) embeds through the Albert API and needs an `ALBERT_ADMIN_API_KEY` Actions secret. Add the job back once that secret is set.
 
-Integration tests create the `TEST_POSTGRES_URL` database (default `postgresql+asyncpg://postgres:changeme@localhost:5432/opengaterag_test`) from the models, and roll back every test.
+Integration tests create the `TEST_POSTGRES_URL` database (default `postgresql+asyncpg://postgres:changeme@localhost:5432/opengaterag_test`) from the models, and roll back every test. Meilisearch tests create one index per test on `TEST_MEILISEARCH_URL` (default `http://localhost:7700`), without an embedder so that adding chunks does not call OpenGateLLM, and delete it afterwards.
 
 | Layer | Path | Covers |
 |---|---|---|
