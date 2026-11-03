@@ -17,5 +17,6 @@ class RouterName(StrEnum):
 class EndpointRoute(StrEnum):
     COLLECTIONS = "/collections"
     COLLECTION = "/collections/{collection_id}"
+    COLLECTION_DOCUMENTS = "/collections/{collection_id}/documents"
     DOCUMENT = "/documents/{document_id}"
     METRICS = "/metrics"
