@@ -22,7 +22,7 @@ from opengaterag.api.use_cases.collections import (
     GetOneCollectionUseCase,
     UpdateCollectionUseCase,
 )
-from opengaterag.api.use_cases.documents import CreateDocumentUseCase, GetDocumentsUseCase, GetOneDocumentUseCase
+from opengaterag.api.use_cases.documents import CreateDocumentUseCase, DeleteDocumentUseCase, GetDocumentsUseCase, GetOneDocumentUseCase
 
 
 async def get_postgres_session() -> AsyncGenerator[AsyncSession]:
@@ -115,4 +115,21 @@ def get_one_document_use_case_factory(postgres_session: AsyncSession = Depends(g
     return GetOneDocumentUseCase(
         document_repository=PostgresDocumentRepository(postgres_session=postgres_session),
         collection_query=PostgresCollectionQuery(postgres_session=postgres_session),
+    )
+
+
+def delete_document_use_case_factory(
+    postgres_session: AsyncSession = Depends(get_autocommit_postgres_session),
+    configuration: Configuration = Depends(get_configuration),
+) -> DeleteDocumentUseCase:
+    meilisearch = configuration.dependencies.meilisearch
+
+    return DeleteDocumentUseCase(
+        document_repository=PostgresDocumentRepository(postgres_session=postgres_session),
+        collection_query=PostgresCollectionQuery(postgres_session=postgres_session),
+        chunk_index=MeilisearchChunkIndex(
+            meilisearch_client=global_context.meilisearch_client,
+            index_name=meilisearch.index_name,
+            task_timeout=meilisearch.task_timeout,
+        ),
     )

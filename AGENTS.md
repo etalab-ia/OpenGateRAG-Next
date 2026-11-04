@@ -163,6 +163,7 @@ The first slice of each pattern. Copy it when adding the same kind of code. Path
 | Integration endpoint / Postgres tests | `tests/integration/endpoints/test_get_one_collection.py`, `tests/integration/postgres/` |
 | Meilisearch index bootstrap | `infrastructure/meilisearch/_meilisearchindexbootstrap.py` |
 | Use case writing to Postgres and Meilisearch | `use_cases/documents/_createdocumentusecase.py` (compensation when embedding fails) |
+| Use case deleting from Meilisearch then Postgres | `use_cases/documents/_deletedocumentusecase.py` (chunks first, then the row) |
 | Meilisearch adapter (task wait, `error.code` mapping) | `infrastructure/meilisearch/_meilisearchchunkindex.py` |
 | Text adapters (parser, splitter) | `infrastructure/text/` |
 | Multipart endpoint | `create_document` in `infrastructure/fastapi/endpoints/documents.py` (`CreateDocumentBody` declared with `File`, attributes as a JSON form field) |

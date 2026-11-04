@@ -1,6 +1,11 @@
 from fastapi import APIRouter, Depends, File, Path, Query, Security
 
-from opengaterag.api.dependencies import create_document_use_case_factory, get_documents_use_case_factory, get_one_document_use_case_factory
+from opengaterag.api.dependencies import (
+    create_document_use_case_factory,
+    delete_document_use_case_factory,
+    get_documents_use_case_factory,
+    get_one_document_use_case_factory,
+)
 from opengaterag.api.domain.collection.errors import CollectionNotFoundError
 from opengaterag.api.domain.document.errors import DocumentNotFoundError, UnsupportedFileTypeError
 from opengaterag.api.domain.search.errors import ChunkEmbeddingFailedError
@@ -18,6 +23,9 @@ from opengaterag.api.use_cases.documents import (
     CreateDocumentCommand,
     CreateDocumentUseCase,
     CreateDocumentUseCaseSuccess,
+    DeleteDocumentCommand,
+    DeleteDocumentUseCase,
+    DeleteDocumentUseCaseSuccess,
     GetDocumentsCommand,
     GetDocumentsUseCase,
     GetDocumentsUseCaseSuccess,
@@ -98,5 +106,24 @@ async def get_one_document(
     match result:
         case GetOneDocumentUseCaseSuccess(document=document):
             return DocumentResponse.model_validate(document, from_attributes=True)
+        case DocumentNotFoundError():
+            raise DocumentNotFoundHTTPException()
+
+
+@router.delete(path=EndpointRoute.DOCUMENT, status_code=204)
+async def delete_document(
+    document_id: int = Path(description="ID of the document."),
+    user: AuthenticatedUserView = Security(AccessController()),
+    delete_document_use_case: DeleteDocumentUseCase = Depends(delete_document_use_case_factory),
+) -> None:
+    """
+    Delete a document from a collection you own. Its chunks are removed from search.
+    """
+    command = DeleteDocumentCommand(user_id=user.id, document_id=document_id)
+    result = await delete_document_use_case.execute(command)
+
+    match result:
+        case DeleteDocumentUseCaseSuccess():
+            return None
         case DocumentNotFoundError():
             raise DocumentNotFoundHTTPException()
