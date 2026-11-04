@@ -34,3 +34,21 @@ class DocumentNotFoundHTTPException(HTTPException):
 
     def __init__(self) -> None:
         super().__init__(status_code=self.status_code, detail=self.detail)
+
+
+# 415
+class UnsupportedFileTypeHTTPException(HTTPException):
+    status_code = 415
+    detail = "Unsupported file type. Upload a Markdown or plain text file."
+
+    def __init__(self) -> None:
+        super().__init__(status_code=self.status_code, detail=self.detail)
+
+
+# 502
+class ChunkEmbeddingFailedHTTPException(HTTPException):
+    status_code = 502
+    detail = "The embedding of the document failed."
+
+    def __init__(self) -> None:
+        super().__init__(status_code=self.status_code, detail=self.detail)

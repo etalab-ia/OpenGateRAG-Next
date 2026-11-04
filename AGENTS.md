@@ -16,10 +16,10 @@ opengaterag/api/
   use_cases/<area>/    Command, UseCase, UseCaseSuccess, execute()
   infrastructure/
     fastapi/           endpoints, schemas, HTTP exceptions, AccessController, routes.py (RouterName, EndpointRoute)
-    postgres/          models.py, Postgres*Repository / Postgres*Query, AutocommitSession
+    postgres/          models.py, Postgres*Repository / Postgres*Query
     meilisearch/       MeilisearchChunkIndex, index bootstrap, filter builder
     opengatellm/       OpenGateLLMAuthenticatedUserQuery (GET /v1/me)
-    text/              document parser (PyMuPDF, html-to-markdown), text splitter (LangChain), tokenizer (tiktoken)
+    text/              document parser (Markdown and plain text), text splitter (LangChain)
     configuration.py   Settings + get_configuration(). Read lazily: never at import time outside main.py / alembic/env.py
     context.py         GlobalContext: process-wide handles (engine, shared httpx clients)
     logging.py         configure_logging(). Modules use logging.getLogger(__name__)
@@ -36,8 +36,8 @@ opengaterag/docs/      unified Swagger/ReDoc merging the OpenGateLLM schema (unc
 | Context | Entities / views | Ports → adapters |
 |---|---|---|
 | `collection` | `Collection`, `CollectionVisibility`, `CollectionView` (+ document count) | `CollectionRepository` → `PostgresCollectionRepository`, `CollectionQuery` → `PostgresCollectionQuery` |
-| `document` | `Document`, `Chunk` (internal value object, never exposed as a resource) | `DocumentRepository` → `PostgresDocumentRepository`, `DocumentParser`, `TextSplitter`, `Tokenizer` → `infrastructure/text/` |
-| `search` | `SearchMethod`, `MetadataFilter`, `SearchResult` | `ChunkIndex` → `MeilisearchChunkIndex` |
+| `document` | `Document`, `Chunk` (internal value object, never exposed as a resource) | `DocumentRepository` → `PostgresDocumentRepository`, `DocumentParser`, `TextSplitter` → `infrastructure/text/` |
+| `search` | `SearchMethod`, `AttributeFilter`, `SearchResult` | `ChunkIndex` → `MeilisearchChunkIndex` |
 | `user` | `User` (storage limit, public-collection right), `AuthenticatedUserView` | `UserRepository` → `PostgresUserRepository`, `AuthenticatedUserQuery` → `OpenGateLLMAuthenticatedUserQuery` |
 
 ### Domain rules
@@ -58,12 +58,12 @@ opengaterag/docs/      unified Swagger/ReDoc merging the OpenGateLLM schema (unc
 | `/v1/collections` | `POST`, `GET` (paginated) |
 | `/v1/collections/{collection_id}` | `GET`, `PATCH` (full replacement), `DELETE` (with its documents) |
 | `/v1/collections/{collection_id}/documents` | `POST` (multipart, file required), `GET` (paginated) |
-| `/v1/documents/{document_id}` | `GET`, `PATCH` (full replacement: `name`, `metadata`, `collection_id`), `DELETE` (with its chunks) |
+| `/v1/documents/{document_id}` | `GET`, `PATCH` (full replacement: `name`, `attributes`, `collection_id`), `DELETE` (with its chunks) |
 | `/v1/search` | `POST` |
 
-There are **no chunk endpoints**. Chunks are an internal detail of indexing: they have no id in the API and cannot be listed, fetched, added or deleted. A search result carries `content`, `score`, `document_id`, `collection_id` and `metadata`. It is not an addressable resource.
+There are **no chunk endpoints**. Chunks are an internal detail of indexing: they have no id in the API and cannot be listed, fetched, added or deleted. A search result carries `content`, `score`, `document_id`, `collection_id` and `attributes`. It is not an addressable resource.
 
-**Read endpoints never call Meilisearch.** Document counts, sizes, chunk counts and metadata are stored in Postgres when a document is written.
+**Read endpoints never call Meilisearch.** Document counts, sizes and attributes are stored in Postgres when a document is written.
 
 ---
 
@@ -74,16 +74,16 @@ There are **no chunk endpoints**. Chunks are an internal detail of indexing: the
 **One index for all chunks** (`dependencies.meilisearch.index_name`), not one index per collection. Each record:
 
 ```json
-{ "id": "42-0", "collection_id": 7, "document_id": 42, "position": 0, "content": "...", "metadata": { "source_title": "..." } }
+{ "id": "42-0", "collection_id": 7, "document_id": 42, "position": 0, "content": "...", "attributes": { "source_title": "..." } }
 ```
 
 - `id` = `<document_id>-<position>`. Meilisearch ids accept only `[A-Za-z0-9_-]`.
-- `searchableAttributes` = `["content"]`, so keyword search never matches ids or metadata. `filterableAttributes` covers `collection_id`, `document_id` and the metadata fields. `index_language` maps to `localizedAttributes` on `content`.
+- `searchableAttributes` = `["content"]`, so keyword search never matches ids or attributes. `filterableAttributes` covers `collection_id`, `document_id` and `attributes`. `index_language` maps to `localizedAttributes` on `content`.
 - Every search filters on `collection_id IN [...]`, computed from the collections the user can read. Request ids are intersected with that list, never trusted as sent.
 
 **Embedding is done by Meilisearch.** A `rest` embedder calls OpenGateLLM's `/v1/embeddings` (`"input": ["{{text}}", "{{..}}"]`, `"data": [{"embedding": "{{embedding}}"}, "{{..}}"]`). OpenGateRAG never calls `/v1/embeddings` and never sends `_vectors`.
 
-- The embedder `url` is resolved **from the Meilisearch container**, so it is configured separately from `opengatellm.url`. Meilisearch rejects internal IPs by default (`bad uri: Rejected URI`), so `compose.example.yml` expects a public embedder address. An embedder on a private network needs the experimental `MEILI_EXPERIMENTAL_ALLOWED_IP_NETWORKS`, which the compose files do not set.
+- The embedder `url` is resolved **from the Meilisearch container**, so it is configured separately from `opengatellm.url`. It defaults to OpenGateLLM itself (`http://api:8000/v1/embeddings`), which Meilisearch reaches without `MEILI_EXPERIMENTAL_ALLOWED_IP_NETWORKS`.
 - The embedder authenticates with a dedicated OpenGateLLM **service key**. Embedding consumption is therefore not billed to the caller's key, and search responses have no `usage` field.
 - `documentTemplateMaxBytes` defaults to **400** and is documented as truncating the text sent to the embedder. Derive it from the maximum chunk size (`settings.chunk_max_characters` × 4 bytes), so no chunk can be cut if Meilisearch applies it. Measured on v1.56.1, it did not truncate `{{doc.content}}`, even at 400: **the splitter's maximum is what protects the embedder**, so keep it within the embedding model's context.
 
@@ -98,17 +98,17 @@ There are **no chunk endpoints**. Chunks are an internal detail of indexing: the
 | `lexical` | no `hybrid` parameter, so the query is not embedded |
 | `semantic` / `hybrid` | `hybrid: {embedder, semanticRatio: 1.0 / 0.5}` |
 | `score_threshold` | `rankingScoreThreshold`, with `showRankingScore: true` (valid for every method) |
-| metadata `eq` / `sw` | `=` / `STARTS WITH` |
+| attribute `eq` / `sw` | `=` / `STARTS WITH` |
 
-`rff_k` and `ew` (ends with) have no Meilisearch equivalent and are removed. `co` (contains) is removed too: Meilisearch's `CONTAINS` is still experimental because of its performance. Never post-filter hits in Python. Filter strings are built by one function in the adapter that quotes and escapes values. Metadata keys are validated against a pattern at the HTTP boundary. `offset + limit` cannot exceed `pagination.maxTotalHits` (1000 by default).
+`rff_k` and `ew` (ends with) have no Meilisearch equivalent and are removed. `co` (contains) is removed too: Meilisearch's `CONTAINS` is still experimental because of its performance. Never post-filter hits in Python. Filter strings are built by one function in the adapter that quotes and escapes values. Attribute keys are validated against a pattern at the HTTP boundary. `offset + limit` cannot exceed `pagination.maxTotalHits` (1000 by default).
 
 ### Two stores, no transaction
 
 Postgres is the source of truth for ownership and access. Meilisearch holds the searchable chunks. **Never hold a Postgres transaction open across a Meilisearch call**, because indexing waits on embedding.
 
-- **Create document:** check collection → parse → count tokens → check storage → split → insert row (committed) → index chunks. If indexing fails, enqueue a delete of the document's chunks, delete the row, and return the error.
+- **Create document:** check collection → parse → split → insert row (committed) → index chunks. If indexing fails, enqueue a delete of the document's chunks, delete the row, and return the error.
 - **Delete document or collection:** delete the chunks in Meilisearch and wait, **then** delete in Postgres. If the Postgres delete fails, the result is a document without chunks, which is visible and can be deleted again. The reverse order would leave chunks without a document: content the user believes is deleted but that search can still return.
-- **Update document:** update the chunks' `collection_id` and `metadata` in Meilisearch and wait, **then** update Postgres. If the Postgres update fails, sending the same `PATCH` again repairs it.
+- **Update document:** update the chunks' `collection_id` and `attributes` in Meilisearch and wait, **then** update Postgres. If the Postgres update fails, sending the same `PATCH` again repairs it.
 
 ---
 
@@ -162,16 +162,24 @@ The first slice of each pattern. Copy it when adding the same kind of code. Path
 | Unit domain test | `tests/unit/domain/collection/test_collectionentities.py` |
 | Integration endpoint / Postgres tests | `tests/integration/endpoints/test_get_one_collection.py`, `tests/integration/postgres/` |
 | Meilisearch index bootstrap | `infrastructure/meilisearch/_meilisearchindexbootstrap.py` |
+| Use case writing to Postgres and Meilisearch | `use_cases/documents/_createdocumentusecase.py` (compensation when embedding fails) |
+| Meilisearch adapter (task wait, `error.code` mapping) | `infrastructure/meilisearch/_meilisearchchunkindex.py` |
+| Text adapters (parser, splitter) | `infrastructure/text/` |
+| Multipart endpoint | `create_document` in `infrastructure/fastapi/endpoints/documents.py` (`CreateDocumentBody` declared with `File`, attributes as a JSON form field) |
+| DI factory on the autocommit session | `create_document_use_case_factory` in `dependencies.py` |
+| Integration Meilisearch test | `tests/integration/meilisearch/test_meilisearchchunkindex.py` |
 
 ---
 
 ## Tests
 
-`.github/workflows/run_tests.yml` runs two jobs on pull requests: unit (which also writes the coverage badge `.github/badges/coverage.json`: CI writes that file, never edit it by hand) and integration (Postgres from `compose.example.yml`; add Meilisearch with its first slice).
+`.github/workflows/run_tests.yml` runs two jobs on pull requests: unit (which also writes the coverage badge `.github/badges/coverage.json`: CI writes that file, never edit it by hand) and integration (Postgres from `compose.example.yml`).
+
+> **TODO: the integration job is disabled** (`if: false`). It does not start Meilisearch, so the Meilisearch integration tests fail. Start Meilisearch in the job, then enable it again.
 
 > **TODO: no e2e job yet.** The e2e OpenGateLLM (`.github/tests/config.opengatellm.yml`) embeds through the Albert API and needs an `ALBERT_ADMIN_API_KEY` Actions secret. Add the job back once that secret is set.
 
-Integration tests create the `TEST_POSTGRES_URL` database (default `postgresql+asyncpg://postgres:changeme@localhost:5432/opengaterag_test`) from the models, and roll back every test.
+Integration tests create the `TEST_POSTGRES_URL` database (default `postgresql+asyncpg://postgres:changeme@localhost:5432/opengaterag_test`) from the models, and roll back every test. Meilisearch tests create one index per test on `TEST_MEILISEARCH_URL` (default `http://localhost:7700`), without an embedder so that adding chunks does not call OpenGateLLM, and delete it afterwards.
 
 | Layer | Path | Covers |
 |---|---|---|
@@ -179,7 +187,7 @@ Integration tests create the `TEST_POSTGRES_URL` database (default `postgresql+a
 | Unit domain | `opengaterag/api/tests/unit/domain/<context>/test_<context>entities.py` | entity methods |
 | Integration endpoint | `opengaterag/api/tests/integration/endpoints/` | happy path, one row per mapped error (mocked use case). No per-endpoint auth or request-validation tests. `AuthenticatedUserQuery` is stubbed, never OpenGateLLM |
 | Integration Postgres | `opengaterag/api/tests/integration/postgres/` | persist/read, constraints, access filters |
-| Integration Meilisearch | `opengaterag/api/tests/integration/meilisearch/` | real Meilisearch: bootstrap, add/delete by filter, `metadata.<key>` filters, filter escaping, task failure mapping. Never mock the Meilisearch HTTP API |
+| Integration Meilisearch | `opengaterag/api/tests/integration/meilisearch/` | real Meilisearch: bootstrap, add/delete by filter, `attributes.<key>` filters, filter escaping, task failure mapping. Never mock the Meilisearch HTTP API |
 | e2e | `.github/tests/e2e/` | full stack against a real OpenGateLLM (semantic and hybrid ranking). No refresh hooks: writes are visible once they return |
 
 Assert only what the test is about, not every field of the response. Unit test names start with `test_should_`. Mocks are prefixed `mock_`. Use `# Arrange` / `# Act` / `# Assert`. Every test directory has an `__init__.py`.
@@ -207,4 +215,5 @@ ruff check --fix . && ruff format .
 
 ## Deferred to the end of the revamp
 
-- **Quota management and viewing usage.** Rethink the storage quota as a whole: what a document's size means and how it is counted, how `storage_limit` is enforced, and how a user sees their usage against their limit (one per-user "used / limit" figure, not a size on each collection). Collection responses deliberately carry no `size` until then.
+- **Quota management and viewing usage.** Rethink the storage quota as a whole: what a document's size means and how it is counted, how `storage_limit` is enforced, and how a user sees their usage against their limit (one per-user "used / limit" figure, not a size on each collection). Collection responses deliberately carry no `size` until then, and creating a document neither counts its tokens nor checks `storage_limit`.
+- **Cleanup when indexing raises.** Creating a document cleans up only when indexing returns an error. An exception (task timeout, unmapped error code, HTTP error) leaves the document even though the request failed.

@@ -1,8 +1,8 @@
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from opengaterag.api.domain.document import DocumentRepository
-from opengaterag.api.domain.document.entities import Document
+from opengaterag.api.domain.document.entities import Document, DocumentAttributes
 from opengaterag.api.domain.document.errors import DocumentNotFoundError
 from opengaterag.api.infrastructure.postgres.models import Document as DocumentTable
 
@@ -10,6 +10,12 @@ from opengaterag.api.infrastructure.postgres.models import Document as DocumentT
 class PostgresDocumentRepository(DocumentRepository):
     def __init__(self, postgres_session: AsyncSession):
         self.postgres_session = postgres_session
+
+    async def create_document(self, collection_id: int, name: str, attributes: DocumentAttributes) -> Document:
+        statement = insert(DocumentTable).values(collection_id=collection_id, name=name, attributes=attributes).returning(DocumentTable)
+        row = (await self.postgres_session.execute(statement)).scalar_one()
+
+        return Document.model_validate(row, from_attributes=True)
 
     async def get_document(self, document_id: int) -> Document | DocumentNotFoundError:
         statement = select(DocumentTable).where(DocumentTable.id == document_id)
@@ -26,3 +32,12 @@ class PostgresDocumentRepository(DocumentRepository):
         rows = (await self.postgres_session.execute(statement)).scalars().all()
 
         return [Document.model_validate(row, from_attributes=True) for row in rows], total
+
+    async def delete_document(self, document_id: int) -> None | DocumentNotFoundError:
+        statement = delete(DocumentTable).where(DocumentTable.id == document_id).returning(DocumentTable.id)
+        deleted_id = (await self.postgres_session.execute(statement)).scalar_one_or_none()
+
+        if deleted_id is None:
+            return DocumentNotFoundError()
+
+        return None

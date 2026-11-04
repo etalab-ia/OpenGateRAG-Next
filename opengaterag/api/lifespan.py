@@ -25,6 +25,9 @@ async def lifespan(_: FastAPI):
     await bootstrap_meilisearch_index(meilisearch_client=global_context.meilisearch_client, configuration=configuration)
     global_context.postgres_engine = create_postgres_engine(configuration)
     global_context.postgres_session_factory = create_postgres_session_factory(engine=global_context.postgres_engine)
+    global_context.autocommit_postgres_session_factory = create_postgres_session_factory(
+        engine=global_context.postgres_engine.execution_options(isolation_level="AUTOCOMMIT")
+    )
 
     yield
 

@@ -8,6 +8,7 @@ class GlobalContext(BaseModel):
 
     postgres_engine: AsyncEngine | None = None
     postgres_session_factory: async_sessionmaker | None = None
+    autocommit_postgres_session_factory: async_sessionmaker | None = None
     opengatellm_client: httpx.AsyncClient | None = None
     meilisearch_client: httpx.AsyncClient | None = None
 
