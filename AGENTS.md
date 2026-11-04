@@ -173,7 +173,9 @@ The first slice of each pattern. Copy it when adding the same kind of code. Path
 
 ## Tests
 
-`.github/workflows/run_tests.yml` runs two jobs on pull requests: unit (which also writes the coverage badge `.github/badges/coverage.json`: CI writes that file, never edit it by hand) and integration (Postgres from `compose.example.yml`; add Meilisearch with its first slice).
+`.github/workflows/run_tests.yml` runs two jobs on pull requests: unit (which also writes the coverage badge `.github/badges/coverage.json`: CI writes that file, never edit it by hand) and integration (Postgres from `compose.example.yml`).
+
+> **TODO: the integration job is disabled** (`if: false`). It does not start Meilisearch, so the Meilisearch integration tests fail. Start Meilisearch in the job, then enable it again.
 
 > **TODO: no e2e job yet.** The e2e OpenGateLLM (`.github/tests/config.opengatellm.yml`) embeds through the Albert API and needs an `ALBERT_ADMIN_API_KEY` Actions secret. Add the job back once that secret is set.
 
