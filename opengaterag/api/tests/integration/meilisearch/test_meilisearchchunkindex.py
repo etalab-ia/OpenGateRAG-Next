@@ -3,8 +3,8 @@ from opengaterag.api.infrastructure.meilisearch import MeilisearchChunkIndex
 from opengaterag.api.tests.integration.meilisearch.conftest import TASK_TIMEOUT
 
 
-def _chunk(document_id: int, position: int) -> Chunk:
-    return Chunk(document_id=document_id, collection_id=7, position=position, content=f"Part {position}.", attributes={"source_title": "Report"})
+def _chunk(document_id: int, position: int, collection_id: int = 7) -> Chunk:
+    return Chunk(document_id=document_id, collection_id=collection_id, position=position, content=f"Part {position}.", attributes={"source_title": "Report"})  # fmt: off
 
 
 async def _get_chunk_ids(meilisearch_client, index_name: str) -> list[str]:
@@ -46,3 +46,16 @@ class TestDeleteDocumentChunks:
 
         # Assert
         assert await _get_chunk_ids(meilisearch_client, index_name) == ["43-0"]
+
+
+class TestDeleteCollectionChunks:
+    async def test_should_delete_chunks_of_collection_only(self, meilisearch_client, index_name):
+        # Arrange
+        chunk_index = MeilisearchChunkIndex(meilisearch_client=meilisearch_client, index_name=index_name, task_timeout=TASK_TIMEOUT)
+        await chunk_index.add_chunks(chunks=[_chunk(document_id=42, position=0), _chunk(document_id=43, position=0), _chunk(document_id=44, position=0, collection_id=8)])  # fmt: off
+
+        # Act
+        await chunk_index.delete_collection_chunks(collection_id=7)
+
+        # Assert
+        assert await _get_chunk_ids(meilisearch_client, index_name) == ["44-0"]

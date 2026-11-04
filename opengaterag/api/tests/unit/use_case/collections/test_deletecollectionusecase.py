@@ -1,12 +1,14 @@
 from datetime import UTC, datetime
 from unittest.mock import create_autospec
 
+import httpx
 import pytest
 
 from opengaterag.api.domain.collection import CollectionQuery, CollectionRepository
 from opengaterag.api.domain.collection.entities import CollectionVisibility
 from opengaterag.api.domain.collection.errors import CollectionNotFoundError
 from opengaterag.api.domain.collection.views import CollectionView
+from opengaterag.api.domain.search import ChunkIndex
 from opengaterag.api.use_cases.collections import DeleteCollectionCommand, DeleteCollectionUseCase, DeleteCollectionUseCaseSuccess
 
 OWNER_ID = 1
@@ -43,12 +45,21 @@ def mock_collection_query():
 
 
 @pytest.fixture
-def use_case(mock_collection_repository, mock_collection_query):
-    return DeleteCollectionUseCase(collection_repository=mock_collection_repository, collection_query=mock_collection_query)
+def mock_chunk_index():
+    mock_chunk_index = create_autospec(ChunkIndex, instance=True, spec_set=True)
+    mock_chunk_index.delete_collection_chunks.return_value = None
+    return mock_chunk_index
+
+
+@pytest.fixture
+def use_case(mock_collection_repository, mock_collection_query, mock_chunk_index):
+    return DeleteCollectionUseCase(
+        collection_repository=mock_collection_repository, collection_query=mock_collection_query, chunk_index=mock_chunk_index
+    )
 
 
 class TestDeleteCollectionUseCase:
-    async def test_should_delete_own_collection(self, use_case, mock_collection_repository, mock_collection_query):
+    async def test_should_delete_own_collection(self, use_case, mock_collection_repository, mock_collection_query, mock_chunk_index):
         # Arrange
         mock_collection_query.get_collection.return_value = _stored_collection_view()
         mock_collection_repository.delete_collection.return_value = None
@@ -58,10 +69,23 @@ class TestDeleteCollectionUseCase:
 
         # Assert
         assert result == DeleteCollectionUseCaseSuccess()
+        mock_chunk_index.delete_collection_chunks.assert_awaited_once_with(collection_id=COLLECTION_ID)
         mock_collection_repository.delete_collection.assert_awaited_once_with(collection_id=COLLECTION_ID)
 
+    async def test_should_keep_collection_when_chunk_deletion_fails(self, use_case, mock_collection_repository, mock_collection_query, mock_chunk_index):  # fmt: off
+        # Arrange
+        mock_collection_query.get_collection.return_value = _stored_collection_view()
+        mock_chunk_index.delete_collection_chunks.side_effect = httpx.ConnectError("Meilisearch is unreachable")
+
+        # Act
+        with pytest.raises(httpx.ConnectError):
+            await use_case.execute(_command())
+
+        # Assert
+        mock_collection_repository.delete_collection.assert_not_awaited()
+
     async def test_should_return_collection_not_found_error_when_collection_does_not_exist(
-        self, use_case, mock_collection_repository, mock_collection_query
+        self, use_case, mock_collection_repository, mock_collection_query, mock_chunk_index
     ):
         # Arrange
         mock_collection_query.get_collection.return_value = CollectionNotFoundError()
@@ -72,10 +96,11 @@ class TestDeleteCollectionUseCase:
         # Assert
         assert result == CollectionNotFoundError()
         mock_collection_repository.delete_collection.assert_not_awaited()
+        mock_chunk_index.delete_collection_chunks.assert_not_awaited()
 
     @pytest.mark.parametrize("visibility", [CollectionVisibility.PRIVATE, CollectionVisibility.PUBLIC])
     async def test_should_return_collection_not_found_error_when_user_is_not_owner(
-        self, use_case, mock_collection_repository, mock_collection_query, visibility
+        self, use_case, mock_collection_repository, mock_collection_query, mock_chunk_index, visibility
     ):
         # Arrange
         mock_collection_query.get_collection.return_value = _stored_collection_view(visibility)
@@ -86,3 +111,4 @@ class TestDeleteCollectionUseCase:
         # Assert
         assert result == CollectionNotFoundError()
         mock_collection_repository.delete_collection.assert_not_awaited()
+        mock_chunk_index.delete_collection_chunks.assert_not_awaited()

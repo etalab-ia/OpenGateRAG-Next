@@ -3,6 +3,7 @@ from collections.abc import AsyncGenerator
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from opengaterag.api.domain.search import ChunkIndex
 from opengaterag.api.domain.user import AuthenticatedUserQuery
 from opengaterag.api.infrastructure.configuration import Configuration, get_configuration
 from opengaterag.api.infrastructure.context import global_context
@@ -49,6 +50,16 @@ def get_authenticated_user_query() -> AuthenticatedUserQuery:
     return OpenGateLLMAuthenticatedUserQuery(opengatellm_client=global_context.opengatellm_client)
 
 
+def get_chunk_index(configuration: Configuration = Depends(get_configuration)) -> ChunkIndex:
+    meilisearch = configuration.dependencies.meilisearch
+
+    return MeilisearchChunkIndex(
+        meilisearch_client=global_context.meilisearch_client,
+        index_name=meilisearch.index_name,
+        task_timeout=meilisearch.task_timeout,
+    )
+
+
 # collection use cases
 def create_collection_use_case_factory(
     postgres_session: AsyncSession = Depends(get_postgres_session),
@@ -76,10 +87,14 @@ def update_collection_use_case_factory(postgres_session: AsyncSession = Depends(
     )
 
 
-def delete_collection_use_case_factory(postgres_session: AsyncSession = Depends(get_postgres_session)) -> DeleteCollectionUseCase:
+def delete_collection_use_case_factory(
+    postgres_session: AsyncSession = Depends(get_autocommit_postgres_session),
+    chunk_index: ChunkIndex = Depends(get_chunk_index),
+) -> DeleteCollectionUseCase:
     return DeleteCollectionUseCase(
         collection_repository=PostgresCollectionRepository(postgres_session=postgres_session),
         collection_query=PostgresCollectionQuery(postgres_session=postgres_session),
+        chunk_index=chunk_index,
     )
 
 
@@ -87,20 +102,14 @@ def delete_collection_use_case_factory(postgres_session: AsyncSession = Depends(
 def create_document_use_case_factory(
     postgres_session: AsyncSession = Depends(get_autocommit_postgres_session),
     configuration: Configuration = Depends(get_configuration),
+    chunk_index: ChunkIndex = Depends(get_chunk_index),
 ) -> CreateDocumentUseCase:
-    settings = configuration.settings
-    meilisearch = configuration.dependencies.meilisearch
-
     return CreateDocumentUseCase(
         collection_query=PostgresCollectionQuery(postgres_session=postgres_session),
         document_repository=PostgresDocumentRepository(postgres_session=postgres_session),
         document_parser=MarkdownDocumentParser(),
-        text_splitter=LangChainTextSplitter(chunk_max_characters=settings.chunk_max_characters),
-        chunk_index=MeilisearchChunkIndex(
-            meilisearch_client=global_context.meilisearch_client,
-            index_name=meilisearch.index_name,
-            task_timeout=meilisearch.task_timeout,
-        ),
+        text_splitter=LangChainTextSplitter(chunk_max_characters=configuration.settings.chunk_max_characters),
+        chunk_index=chunk_index,
     )
 
 
@@ -120,16 +129,10 @@ def get_one_document_use_case_factory(postgres_session: AsyncSession = Depends(g
 
 def delete_document_use_case_factory(
     postgres_session: AsyncSession = Depends(get_autocommit_postgres_session),
-    configuration: Configuration = Depends(get_configuration),
+    chunk_index: ChunkIndex = Depends(get_chunk_index),
 ) -> DeleteDocumentUseCase:
-    meilisearch = configuration.dependencies.meilisearch
-
     return DeleteDocumentUseCase(
         document_repository=PostgresDocumentRepository(postgres_session=postgres_session),
         collection_query=PostgresCollectionQuery(postgres_session=postgres_session),
-        chunk_index=MeilisearchChunkIndex(
-            meilisearch_client=global_context.meilisearch_client,
-            index_name=meilisearch.index_name,
-            task_timeout=meilisearch.task_timeout,
-        ),
+        chunk_index=chunk_index,
     )

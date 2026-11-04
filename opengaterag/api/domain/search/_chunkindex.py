@@ -12,3 +12,7 @@ class ChunkIndex(ABC):
     @abstractmethod
     async def delete_document_chunks(self, document_id: int) -> None:
         pass
+
+    @abstractmethod
+    async def delete_collection_chunks(self, collection_id: int) -> None:
+        pass
