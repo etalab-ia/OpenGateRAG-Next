@@ -6,7 +6,7 @@ from opengaterag.api.domain.document.errors import DocumentNotFoundError
 
 class DocumentRepository(ABC):
     @abstractmethod
-    async def create_document(self, collection_id: int, name: str, size: int, chunks: int, metadata: DocumentMetadata) -> Document:
+    async def create_document(self, collection_id: int, name: str, size: int, metadata: DocumentMetadata) -> Document:
         pass
 
     @abstractmethod

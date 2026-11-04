@@ -81,7 +81,6 @@ class CreateDocumentUseCase:
             collection_id=command.collection_id,
             name=command.name,
             size=size,
-            chunks=len(contents),
             metadata=command.metadata,
         )
         chunks = [

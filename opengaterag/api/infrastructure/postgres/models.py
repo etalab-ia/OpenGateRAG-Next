@@ -42,7 +42,6 @@ class Document(Base):
     collection_id: Mapped[int] = mapped_column(ForeignKey(column="collection.id", ondelete="CASCADE"))
     name: Mapped[str]
     size: Mapped[int] = mapped_column(default=0)
-    chunks: Mapped[int] = mapped_column(default=0)
     # The attribute cannot be named `metadata`: SQLAlchemy reserves it on declarative models.
     metadata_: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
     created: Mapped[dt.datetime] = mapped_column(UtcDateTime, insert_default=func.now())

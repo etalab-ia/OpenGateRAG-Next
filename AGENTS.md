@@ -63,7 +63,7 @@ opengaterag/docs/      unified Swagger/ReDoc merging the OpenGateLLM schema (unc
 
 There are **no chunk endpoints**. Chunks are an internal detail of indexing: they have no id in the API and cannot be listed, fetched, added or deleted. A search result carries `content`, `score`, `document_id`, `collection_id` and `metadata`. It is not an addressable resource.
 
-**Read endpoints never call Meilisearch.** Document counts, sizes, chunk counts and metadata are stored in Postgres when a document is written.
+**Read endpoints never call Meilisearch.** Document counts, sizes and metadata are stored in Postgres when a document is written.
 
 ---
 

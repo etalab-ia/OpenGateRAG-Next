@@ -22,7 +22,6 @@ class DocumentResponse(BaseModel):
     id: Annotated[int, Field(description="ID of the document.")]
     collection_id: Annotated[int, Field(description="ID of the collection that contains the document.")]
     name: Annotated[str, Field(description="Name of the document.")]
-    chunks: Annotated[int, Field(description="Number of chunks the document was split into.")]
     metadata: Annotated[DocumentMetadata, Field(description="Metadata of the document, copied onto each of its chunks.")]
     created: Annotated[UnixTimestamp, Field(description="Time of creation, as Unix timestamp.")]
 

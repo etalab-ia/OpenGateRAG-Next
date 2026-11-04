@@ -35,7 +35,7 @@ COMMAND = CreateDocumentCommand(
     content=b"# Report",
     metadata=METADATA,
 )
-DOCUMENT = Document(id=DOCUMENT_ID, collection_id=COLLECTION_ID, name="report.md", chunks=2, metadata=METADATA, created=NOW)
+DOCUMENT = Document(id=DOCUMENT_ID, collection_id=COLLECTION_ID, name="report.md", metadata=METADATA, created=NOW)
 
 
 def _collection_view(visibility: CollectionVisibility = CollectionVisibility.PRIVATE) -> CollectionView:
@@ -127,7 +127,7 @@ class TestCreateDocumentUseCase:
         # Assert
         assert result == CreateDocumentUseCaseSuccess(document=DOCUMENT)
         mock_user_repository.get_or_create_user.assert_awaited_once_with(user_id=OWNER_ID, storage_limit=STORAGE_DEFAULT_LIMIT)
-        mock_document_repository.create_document.assert_awaited_once_with(collection_id=COLLECTION_ID, name="report.md", size=10, chunks=2, metadata=METADATA)  # fmt: off
+        mock_document_repository.create_document.assert_awaited_once_with(collection_id=COLLECTION_ID, name="report.md", size=10, metadata=METADATA)  # fmt: off
         mock_chunk_index.add_chunks.assert_awaited_once_with(
             chunks=[
                 Chunk(document_id=DOCUMENT_ID, collection_id=COLLECTION_ID, position=0, content="# Report\n\nFirst part.", metadata=METADATA),

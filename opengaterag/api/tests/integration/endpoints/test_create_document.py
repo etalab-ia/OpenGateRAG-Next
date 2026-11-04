@@ -32,7 +32,7 @@ def mock_use_case(app: FastAPI):
 class TestCreateDocument:
     async def test_should_create_document_from_uploaded_file(self, client: AsyncClient, mock_authenticated_user_query, mock_use_case):
         # Arrange
-        document = Document(id=42, collection_id=COLLECTION_ID, name="report.md", chunks=1, metadata={"year": 2030}, created=datetime.now(UTC))
+        document = Document(id=42, collection_id=COLLECTION_ID, name="report.md", metadata={"year": 2030}, created=datetime.now(UTC))
         mock_use_case.execute.return_value = CreateDocumentUseCaseSuccess(document=document)
 
         # Act

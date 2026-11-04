@@ -7,7 +7,6 @@ class Document(BaseModel):
     id: int
     collection_id: int
     name: str
-    chunks: int
     metadata: DocumentMetadata
     created: UtcDatetime
 

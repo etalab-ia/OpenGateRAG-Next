@@ -17,17 +17,16 @@ async def _add_collection(db_session, user_id: int = 42) -> int:
 
 
 class TestCreateDocument:
-    async def test_should_persist_document_with_its_size_chunks_and_metadata(self, db_session):
+    async def test_should_persist_document_with_its_size_and_metadata(self, db_session):
         # Arrange
         repository = PostgresDocumentRepository(postgres_session=db_session)
         collection_id = await _add_collection(db_session)
 
         # Act
-        document = await repository.create_document(collection_id=collection_id, name="report.md", size=120, chunks=3, metadata={"source_title": "Report", "year": 2030})  # fmt: off
+        document = await repository.create_document(collection_id=collection_id, name="report.md", size=120, metadata={"source_title": "Report", "year": 2030})  # fmt: off
 
         # Assert
         assert isinstance(document, Document)
-        assert document.chunks == 3
         assert document.metadata == {"source_title": "Report", "year": 2030}
         assert document.created.tzinfo is not None
         assert await db_session.scalar(select(DocumentTable.size).where(DocumentTable.id == document.id)) == 120
