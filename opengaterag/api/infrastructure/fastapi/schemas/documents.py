@@ -12,7 +12,7 @@ MetadataKey = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_]{1,64}$")]
 
 
 class CreateDocumentBody(BaseModel):
-    file: Annotated[UploadFile, Field(description="File to upload: PDF, HTML, Markdown or plain text.")]
+    file: Annotated[UploadFile, Field(description="File to upload: Markdown or plain text.")]
     name: Annotated[str | None, StringConstraints(strip_whitespace=True, min_length=1), Field(default=None, description="Name of the document. Defaults to the file name.")]  # fmt: off
     metadata: Annotated[Json[dict[MetadataKey, str | int | float | bool]] | None, Field(default=None, description="Metadata of the document, copied onto each of its chunks, as a JSON object of scalar values. Keys contain only letters, digits and underscores.", examples=['{"source_title": "Annual report"}'])]  # fmt: off
 

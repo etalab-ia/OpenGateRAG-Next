@@ -48,7 +48,7 @@ class StorageLimitExceededHTTPException(HTTPException):
 # 415
 class UnsupportedFileTypeHTTPException(HTTPException):
     status_code = 415
-    detail = "Unsupported file type. Upload a PDF, HTML, Markdown or plain text file."
+    detail = "Unsupported file type. Upload a Markdown or plain text file."
 
     def __init__(self) -> None:
         super().__init__(status_code=self.status_code, detail=self.detail)

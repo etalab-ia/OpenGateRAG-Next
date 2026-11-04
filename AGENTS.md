@@ -19,7 +19,7 @@ opengaterag/api/
     postgres/          models.py, Postgres*Repository / Postgres*Query
     meilisearch/       MeilisearchChunkIndex, index bootstrap, filter builder
     opengatellm/       OpenGateLLMAuthenticatedUserQuery (GET /v1/me)
-    text/              document parser (PyMuPDF, html-to-markdown), text splitter (LangChain), tokenizer (tiktoken)
+    text/              document parser (Markdown and plain text), text splitter (LangChain), tokenizer (tiktoken)
     configuration.py   Settings + get_configuration(). Read lazily: never at import time outside main.py / alembic/env.py
     context.py         GlobalContext: process-wide handles (engine, shared httpx clients)
     logging.py         configure_logging(). Modules use logging.getLogger(__name__)

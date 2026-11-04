@@ -58,7 +58,7 @@ class TestCreateDocument:
         [
             (CollectionNotFoundError(), 404, "Collection not found."),
             (StorageLimitExceededError(), 413, "Storage limit exceeded."),
-            (UnsupportedFileTypeError(), 415, "Unsupported file type. Upload a PDF, HTML, Markdown or plain text file."),
+            (UnsupportedFileTypeError(), 415, "Unsupported file type. Upload a Markdown or plain text file."),
             (ChunkEmbeddingFailedError(), 502, "The embedding of the document failed."),
         ],
     )
