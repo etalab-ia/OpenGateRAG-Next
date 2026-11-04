@@ -27,7 +27,7 @@ def build_index_settings(configuration: Configuration) -> dict[str, Any]:
 
     index_settings = {
         "searchableAttributes": ["content"],
-        "filterableAttributes": ["collection_id", "document_id", "metadata"],
+        "filterableAttributes": ["collection_id", "document_id", "attributes"],
         "embedders": {
             meilisearch.embedder_name: {
                 "source": "rest",

@@ -4,7 +4,7 @@ from opengaterag.api.tests.integration.meilisearch.conftest import TASK_TIMEOUT
 
 
 def _chunk(document_id: int, position: int) -> Chunk:
-    return Chunk(document_id=document_id, collection_id=7, position=position, content=f"Part {position}.", metadata={"source_title": "Report"})
+    return Chunk(document_id=document_id, collection_id=7, position=position, content=f"Part {position}.", attributes={"source_title": "Report"})
 
 
 async def _get_chunk_ids(meilisearch_client, index_name: str) -> list[str]:
@@ -31,7 +31,7 @@ class TestAddChunks:
             "collection_id": 7,
             "position": 1,
             "content": "Part 1.",
-            "metadata": {"source_title": "Report"},
+            "attributes": {"source_title": "Report"},
         }
 
 

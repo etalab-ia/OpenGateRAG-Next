@@ -4,7 +4,7 @@ from opengaterag.api.domain.collection import CollectionQuery
 from opengaterag.api.domain.collection.errors import CollectionNotFoundError
 from opengaterag.api.domain.collection.views import CollectionView
 from opengaterag.api.domain.document import DocumentParser, DocumentRepository, TextSplitter
-from opengaterag.api.domain.document.entities import Chunk, Document, DocumentMetadata
+from opengaterag.api.domain.document.entities import Chunk, Document, DocumentAttributes
 from opengaterag.api.domain.document.errors import UnsupportedFileTypeError
 from opengaterag.api.domain.search import ChunkIndex
 from opengaterag.api.domain.search.errors import ChunkEmbeddingFailedError
@@ -18,7 +18,7 @@ class CreateDocumentCommand:
     file_name: str
     content_type: str | None
     content: bytes
-    metadata: DocumentMetadata
+    attributes: DocumentAttributes
 
 
 @dataclass
@@ -60,9 +60,11 @@ class CreateDocumentUseCase:
                 return text
 
         contents = self.text_splitter.split(text=text)
-        document = await self.document_repository.create_document(collection_id=command.collection_id, name=command.name, metadata=command.metadata)
+        document = await self.document_repository.create_document(
+            collection_id=command.collection_id, name=command.name, attributes=command.attributes
+        )
         chunks = [
-            Chunk(document_id=document.id, collection_id=document.collection_id, position=position, content=content, metadata=document.metadata)
+            Chunk(document_id=document.id, collection_id=document.collection_id, position=position, content=content, attributes=document.attributes)
             for position, content in enumerate(contents)
         ]
         indexed = await self.chunk_index.add_chunks(chunks=chunks)

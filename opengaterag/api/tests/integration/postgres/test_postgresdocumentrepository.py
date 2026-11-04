@@ -17,17 +17,17 @@ async def _add_collection(db_session, user_id: int = 42) -> int:
 
 
 class TestCreateDocument:
-    async def test_should_persist_document_with_its_metadata(self, db_session):
+    async def test_should_persist_document_with_its_attributes(self, db_session):
         # Arrange
         repository = PostgresDocumentRepository(postgres_session=db_session)
         collection_id = await _add_collection(db_session)
 
         # Act
-        document = await repository.create_document(collection_id=collection_id, name="report.md", metadata={"source_title": "Report", "year": 2030})  # fmt: off
+        document = await repository.create_document(collection_id=collection_id, name="report.md", attributes={"source_title": "Report", "year": 2030})  # fmt: off
 
         # Assert
         assert isinstance(document, Document)
-        assert document.metadata == {"source_title": "Report", "year": 2030}
+        assert document.attributes == {"source_title": "Report", "year": 2030}
         assert document.created.tzinfo is not None
 
 

@@ -20,7 +20,7 @@ OTHER_USER_ID = 2
 COLLECTION_ID = 7
 DOCUMENT_ID = 42
 NOW = datetime(2030, 1, 1, tzinfo=UTC)
-METADATA = {"source_title": "Annual report"}
+ATTRIBUTES = {"source_title": "Annual report"}
 
 COMMAND = CreateDocumentCommand(
     user_id=OWNER_ID,
@@ -29,9 +29,9 @@ COMMAND = CreateDocumentCommand(
     file_name="report.md",
     content_type="text/markdown",
     content=b"# Report",
-    metadata=METADATA,
+    attributes=ATTRIBUTES,
 )
-DOCUMENT = Document(id=DOCUMENT_ID, collection_id=COLLECTION_ID, name="report.md", metadata=METADATA, created=NOW)
+DOCUMENT = Document(id=DOCUMENT_ID, collection_id=COLLECTION_ID, name="report.md", attributes=ATTRIBUTES, created=NOW)
 
 
 def _collection_view(visibility: CollectionVisibility = CollectionVisibility.PRIVATE) -> CollectionView:
@@ -100,11 +100,11 @@ class TestCreateDocumentUseCase:
 
         # Assert
         assert result == CreateDocumentUseCaseSuccess(document=DOCUMENT)
-        mock_document_repository.create_document.assert_awaited_once_with(collection_id=COLLECTION_ID, name="report.md", metadata=METADATA)
+        mock_document_repository.create_document.assert_awaited_once_with(collection_id=COLLECTION_ID, name="report.md", attributes=ATTRIBUTES)
         mock_chunk_index.add_chunks.assert_awaited_once_with(
             chunks=[
-                Chunk(document_id=DOCUMENT_ID, collection_id=COLLECTION_ID, position=0, content="# Report\n\nFirst part.", metadata=METADATA),
-                Chunk(document_id=DOCUMENT_ID, collection_id=COLLECTION_ID, position=1, content="Second part.", metadata=METADATA),
+                Chunk(document_id=DOCUMENT_ID, collection_id=COLLECTION_ID, position=0, content="# Report\n\nFirst part.", attributes=ATTRIBUTES),
+                Chunk(document_id=DOCUMENT_ID, collection_id=COLLECTION_ID, position=1, content="Second part.", attributes=ATTRIBUTES),
             ]
         )
 

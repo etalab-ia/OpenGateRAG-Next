@@ -24,7 +24,7 @@ async def index_name(meilisearch_client: httpx.AsyncClient) -> AsyncGenerator[st
     index_name = f"test-{uuid4().hex}"
     response = await meilisearch_client.post("/indexes", json={"uid": index_name, "primaryKey": "id"})
     response.raise_for_status()
-    response = await meilisearch_client.patch(f"/indexes/{index_name}/settings", json={"filterableAttributes": ["collection_id", "document_id", "metadata"]})  # fmt: off
+    response = await meilisearch_client.patch(f"/indexes/{index_name}/settings", json={"filterableAttributes": ["collection_id", "document_id", "attributes"]})  # fmt: off
     response.raise_for_status()
     raise_unsuccessful_task(await wait_for_task(meilisearch_client, task_uid=response.json()["taskUid"], task_timeout=TASK_TIMEOUT))
 

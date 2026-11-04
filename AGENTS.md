@@ -37,7 +37,7 @@ opengaterag/docs/      unified Swagger/ReDoc merging the OpenGateLLM schema (unc
 |---|---|---|
 | `collection` | `Collection`, `CollectionVisibility`, `CollectionView` (+ document count) | `CollectionRepository` → `PostgresCollectionRepository`, `CollectionQuery` → `PostgresCollectionQuery` |
 | `document` | `Document`, `Chunk` (internal value object, never exposed as a resource) | `DocumentRepository` → `PostgresDocumentRepository`, `DocumentParser`, `TextSplitter` → `infrastructure/text/` |
-| `search` | `SearchMethod`, `MetadataFilter`, `SearchResult` | `ChunkIndex` → `MeilisearchChunkIndex` |
+| `search` | `SearchMethod`, `AttributeFilter`, `SearchResult` | `ChunkIndex` → `MeilisearchChunkIndex` |
 | `user` | `User` (storage limit, public-collection right), `AuthenticatedUserView` | `UserRepository` → `PostgresUserRepository`, `AuthenticatedUserQuery` → `OpenGateLLMAuthenticatedUserQuery` |
 
 ### Domain rules
@@ -58,12 +58,12 @@ opengaterag/docs/      unified Swagger/ReDoc merging the OpenGateLLM schema (unc
 | `/v1/collections` | `POST`, `GET` (paginated) |
 | `/v1/collections/{collection_id}` | `GET`, `PATCH` (full replacement), `DELETE` (with its documents) |
 | `/v1/collections/{collection_id}/documents` | `POST` (multipart, file required), `GET` (paginated) |
-| `/v1/documents/{document_id}` | `GET`, `PATCH` (full replacement: `name`, `metadata`, `collection_id`), `DELETE` (with its chunks) |
+| `/v1/documents/{document_id}` | `GET`, `PATCH` (full replacement: `name`, `attributes`, `collection_id`), `DELETE` (with its chunks) |
 | `/v1/search` | `POST` |
 
-There are **no chunk endpoints**. Chunks are an internal detail of indexing: they have no id in the API and cannot be listed, fetched, added or deleted. A search result carries `content`, `score`, `document_id`, `collection_id` and `metadata`. It is not an addressable resource.
+There are **no chunk endpoints**. Chunks are an internal detail of indexing: they have no id in the API and cannot be listed, fetched, added or deleted. A search result carries `content`, `score`, `document_id`, `collection_id` and `attributes`. It is not an addressable resource.
 
-**Read endpoints never call Meilisearch.** Document counts, sizes and metadata are stored in Postgres when a document is written.
+**Read endpoints never call Meilisearch.** Document counts, sizes and attributes are stored in Postgres when a document is written.
 
 ---
 
@@ -74,11 +74,11 @@ There are **no chunk endpoints**. Chunks are an internal detail of indexing: the
 **One index for all chunks** (`dependencies.meilisearch.index_name`), not one index per collection. Each record:
 
 ```json
-{ "id": "42-0", "collection_id": 7, "document_id": 42, "position": 0, "content": "...", "metadata": { "source_title": "..." } }
+{ "id": "42-0", "collection_id": 7, "document_id": 42, "position": 0, "content": "...", "attributes": { "source_title": "..." } }
 ```
 
 - `id` = `<document_id>-<position>`. Meilisearch ids accept only `[A-Za-z0-9_-]`.
-- `searchableAttributes` = `["content"]`, so keyword search never matches ids or metadata. `filterableAttributes` covers `collection_id`, `document_id` and the metadata fields. `index_language` maps to `localizedAttributes` on `content`.
+- `searchableAttributes` = `["content"]`, so keyword search never matches ids or attributes. `filterableAttributes` covers `collection_id`, `document_id` and `attributes`. `index_language` maps to `localizedAttributes` on `content`.
 - Every search filters on `collection_id IN [...]`, computed from the collections the user can read. Request ids are intersected with that list, never trusted as sent.
 
 **Embedding is done by Meilisearch.** A `rest` embedder calls OpenGateLLM's `/v1/embeddings` (`"input": ["{{text}}", "{{..}}"]`, `"data": [{"embedding": "{{embedding}}"}, "{{..}}"]`). OpenGateRAG never calls `/v1/embeddings` and never sends `_vectors`.
@@ -98,9 +98,9 @@ There are **no chunk endpoints**. Chunks are an internal detail of indexing: the
 | `lexical` | no `hybrid` parameter, so the query is not embedded |
 | `semantic` / `hybrid` | `hybrid: {embedder, semanticRatio: 1.0 / 0.5}` |
 | `score_threshold` | `rankingScoreThreshold`, with `showRankingScore: true` (valid for every method) |
-| metadata `eq` / `sw` | `=` / `STARTS WITH` |
+| attribute `eq` / `sw` | `=` / `STARTS WITH` |
 
-`rff_k` and `ew` (ends with) have no Meilisearch equivalent and are removed. `co` (contains) is removed too: Meilisearch's `CONTAINS` is still experimental because of its performance. Never post-filter hits in Python. Filter strings are built by one function in the adapter that quotes and escapes values. Metadata keys are validated against a pattern at the HTTP boundary. `offset + limit` cannot exceed `pagination.maxTotalHits` (1000 by default).
+`rff_k` and `ew` (ends with) have no Meilisearch equivalent and are removed. `co` (contains) is removed too: Meilisearch's `CONTAINS` is still experimental because of its performance. Never post-filter hits in Python. Filter strings are built by one function in the adapter that quotes and escapes values. Attribute keys are validated against a pattern at the HTTP boundary. `offset + limit` cannot exceed `pagination.maxTotalHits` (1000 by default).
 
 ### Two stores, no transaction
 
@@ -108,7 +108,7 @@ Postgres is the source of truth for ownership and access. Meilisearch holds the 
 
 - **Create document:** check collection → parse → split → insert row (committed) → index chunks. If indexing fails, enqueue a delete of the document's chunks, delete the row, and return the error.
 - **Delete document or collection:** delete the chunks in Meilisearch and wait, **then** delete in Postgres. If the Postgres delete fails, the result is a document without chunks, which is visible and can be deleted again. The reverse order would leave chunks without a document: content the user believes is deleted but that search can still return.
-- **Update document:** update the chunks' `collection_id` and `metadata` in Meilisearch and wait, **then** update Postgres. If the Postgres update fails, sending the same `PATCH` again repairs it.
+- **Update document:** update the chunks' `collection_id` and `attributes` in Meilisearch and wait, **then** update Postgres. If the Postgres update fails, sending the same `PATCH` again repairs it.
 
 ---
 
@@ -165,7 +165,7 @@ The first slice of each pattern. Copy it when adding the same kind of code. Path
 | Use case writing to Postgres and Meilisearch | `use_cases/documents/_createdocumentusecase.py` (compensation when embedding fails) |
 | Meilisearch adapter (task wait, `error.code` mapping) | `infrastructure/meilisearch/_meilisearchchunkindex.py` |
 | Text adapters (parser, splitter) | `infrastructure/text/` |
-| Multipart endpoint | `create_document` in `infrastructure/fastapi/endpoints/documents.py` (`CreateDocumentBody` declared with `File`, metadata as a JSON form field) |
+| Multipart endpoint | `create_document` in `infrastructure/fastapi/endpoints/documents.py` (`CreateDocumentBody` declared with `File`, attributes as a JSON form field) |
 | DI factory on the autocommit session | `create_document_use_case_factory` in `dependencies.py` |
 | Integration Meilisearch test | `tests/integration/meilisearch/test_meilisearchchunkindex.py` |
 
@@ -185,7 +185,7 @@ Integration tests create the `TEST_POSTGRES_URL` database (default `postgresql+a
 | Unit domain | `opengaterag/api/tests/unit/domain/<context>/test_<context>entities.py` | entity methods |
 | Integration endpoint | `opengaterag/api/tests/integration/endpoints/` | happy path, one row per mapped error (mocked use case). No per-endpoint auth or request-validation tests. `AuthenticatedUserQuery` is stubbed, never OpenGateLLM |
 | Integration Postgres | `opengaterag/api/tests/integration/postgres/` | persist/read, constraints, access filters |
-| Integration Meilisearch | `opengaterag/api/tests/integration/meilisearch/` | real Meilisearch: bootstrap, add/delete by filter, `metadata.<key>` filters, filter escaping, task failure mapping. Never mock the Meilisearch HTTP API |
+| Integration Meilisearch | `opengaterag/api/tests/integration/meilisearch/` | real Meilisearch: bootstrap, add/delete by filter, `attributes.<key>` filters, filter escaping, task failure mapping. Never mock the Meilisearch HTTP API |
 | e2e | `.github/tests/e2e/` | full stack against a real OpenGateLLM (semantic and hybrid ranking). No refresh hooks: writes are visible once they return |
 
 Assert only what the test is about, not every field of the response. Unit test names start with `test_should_`. Mocks are prefixed `mock_`. Use `# Arrange` / `# Act` / `# Assert`. Every test directory has an `__init__.py`.

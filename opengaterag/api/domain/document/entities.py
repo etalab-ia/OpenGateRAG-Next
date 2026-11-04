@@ -1,13 +1,13 @@
 from opengaterag.api.domain import BaseModel, UtcDatetime
 
-DocumentMetadata = dict[str, str | int | float | bool]
+DocumentAttributes = dict[str, str | int | float | bool]
 
 
 class Document(BaseModel):
     id: int
     collection_id: int
     name: str
-    metadata: DocumentMetadata
+    attributes: DocumentAttributes
     created: UtcDatetime
 
 
@@ -16,4 +16,4 @@ class Chunk(BaseModel):
     collection_id: int
     position: int
     content: str
-    metadata: DocumentMetadata
+    attributes: DocumentAttributes

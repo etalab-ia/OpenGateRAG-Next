@@ -31,11 +31,11 @@ def mock_use_case(app: FastAPI):
 class TestCreateDocument:
     async def test_should_create_document_from_uploaded_file(self, client: AsyncClient, mock_authenticated_user_query, mock_use_case):
         # Arrange
-        document = Document(id=42, collection_id=COLLECTION_ID, name="report.md", metadata={"year": 2030}, created=datetime.now(UTC))
+        document = Document(id=42, collection_id=COLLECTION_ID, name="report.md", attributes={"year": 2030}, created=datetime.now(UTC))
         mock_use_case.execute.return_value = CreateDocumentUseCaseSuccess(document=document)
 
         # Act
-        response = await client.post(url=URL, headers=HEADERS, files=FILES, data={"metadata": '{"year": 2030}'})
+        response = await client.post(url=URL, headers=HEADERS, files=FILES, data={"attributes": '{"year": 2030}'})
 
         # Assert
         assert response.status_code == 201, response.text
@@ -48,7 +48,7 @@ class TestCreateDocument:
                 file_name="report.md",
                 content_type="text/markdown",
                 content=b"# Report",
-                metadata={"year": 2030},
+                attributes={"year": 2030},
             )
         )
 

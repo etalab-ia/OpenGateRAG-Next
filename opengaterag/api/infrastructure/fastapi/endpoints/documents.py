@@ -47,7 +47,7 @@ async def create_document(
         file_name=body.file.filename,
         content_type=body.file.content_type,
         content=await body.file.read(),
-        metadata=body.metadata or {},
+        attributes=body.attributes or {},
     )
     result = await create_document_use_case.execute(command)
 

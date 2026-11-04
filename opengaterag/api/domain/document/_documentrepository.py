@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
 
-from opengaterag.api.domain.document.entities import Document, DocumentMetadata
+from opengaterag.api.domain.document.entities import Document, DocumentAttributes
 from opengaterag.api.domain.document.errors import DocumentNotFoundError
 
 
 class DocumentRepository(ABC):
     @abstractmethod
-    async def create_document(self, collection_id: int, name: str, metadata: DocumentMetadata) -> Document:
+    async def create_document(self, collection_id: int, name: str, attributes: DocumentAttributes) -> Document:
         pass
 
     @abstractmethod
