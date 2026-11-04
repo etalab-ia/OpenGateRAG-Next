@@ -28,7 +28,13 @@ class MeilisearchChunkIndex(ChunkIndex):
         return None
 
     async def delete_document_chunks(self, document_id: int) -> None:
-        response = await self.meilisearch_client.post(f"/indexes/{self.index_name}/documents/delete", json={"filter": f"document_id = {document_id}"})
+        await self._delete_chunks(chunk_filter=f"document_id = {document_id}")
+
+    async def delete_collection_chunks(self, collection_id: int) -> None:
+        await self._delete_chunks(chunk_filter=f"collection_id = {collection_id}")
+
+    async def _delete_chunks(self, chunk_filter: str) -> None:
+        response = await self.meilisearch_client.post(f"/indexes/{self.index_name}/documents/delete", json={"filter": chunk_filter})
         response.raise_for_status()
         task = await wait_for_task(self.meilisearch_client, task_uid=response.json()["taskUid"], task_timeout=self.task_timeout)
 
