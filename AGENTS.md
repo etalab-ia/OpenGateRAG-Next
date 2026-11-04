@@ -83,7 +83,7 @@ There are **no chunk endpoints**. Chunks are an internal detail of indexing: the
 
 **Embedding is done by Meilisearch.** A `rest` embedder calls OpenGateLLM's `/v1/embeddings` (`"input": ["{{text}}", "{{..}}"]`, `"data": [{"embedding": "{{embedding}}"}, "{{..}}"]`). OpenGateRAG never calls `/v1/embeddings` and never sends `_vectors`.
 
-- The embedder `url` is resolved **from the Meilisearch container**, so it is configured separately from `opengatellm.url`. Meilisearch rejects internal IPs by default (`bad uri: Rejected URI`), so `compose.example.yml` expects a public embedder address. An embedder on a private network needs the experimental `MEILI_EXPERIMENTAL_ALLOWED_IP_NETWORKS`, which the compose files do not set.
+- The embedder `url` is resolved **from the Meilisearch container**, so it is configured separately from `opengatellm.url`. It defaults to OpenGateLLM itself (`http://api:8000/v1/embeddings`), which Meilisearch reaches without `MEILI_EXPERIMENTAL_ALLOWED_IP_NETWORKS`.
 - The embedder authenticates with a dedicated OpenGateLLM **service key**. Embedding consumption is therefore not billed to the caller's key, and search responses have no `usage` field.
 - `documentTemplateMaxBytes` defaults to **400** and is documented as truncating the text sent to the embedder. Derive it from the maximum chunk size (`settings.chunk_max_characters` × 4 bytes), so no chunk can be cut if Meilisearch applies it. Measured on v1.56.1, it did not truncate `{{doc.content}}`, even at 400: **the splitter's maximum is what protects the embedder**, so keep it within the embedding model's context.
 

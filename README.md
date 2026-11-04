@@ -26,7 +26,7 @@
     docker compose --file compose.example.yml up --wait --detach postgres meilisearch
     ```
 
-    Meilisearch computes the embeddings by calling OpenGateLLM with `MEILISEARCH_EMBEDDER_API_KEY`, an OpenGateLLM service key. `MEILISEARCH_EMBEDDER_URL` is resolved from the Meilisearch container and must be a public address: Meilisearch rejects internal IPs unless `MEILI_EXPERIMENTAL_ALLOWED_IP_NETWORKS` allows them.
+    Meilisearch computes the embeddings by calling OpenGateLLM with `MEILISEARCH_EMBEDDER_API_KEY`, an OpenGateLLM service key. `MEILISEARCH_EMBEDDER_URL` is resolved from the Meilisearch container, so it is configured separately from `OPENGATELLM_URL`.
 
 * Instantiate database
 
