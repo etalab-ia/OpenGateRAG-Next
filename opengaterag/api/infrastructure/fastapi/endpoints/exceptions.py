@@ -36,15 +36,6 @@ class DocumentNotFoundHTTPException(HTTPException):
         super().__init__(status_code=self.status_code, detail=self.detail)
 
 
-# 413
-class StorageLimitExceededHTTPException(HTTPException):
-    status_code = 413
-    detail = "Storage limit exceeded."
-
-    def __init__(self) -> None:
-        super().__init__(status_code=self.status_code, detail=self.detail)
-
-
 # 415
 class UnsupportedFileTypeHTTPException(HTTPException):
     status_code = 415

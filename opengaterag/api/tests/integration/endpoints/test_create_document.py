@@ -10,7 +10,6 @@ from opengaterag.api.domain.collection.errors import CollectionNotFoundError
 from opengaterag.api.domain.document.entities import Document
 from opengaterag.api.domain.document.errors import UnsupportedFileTypeError
 from opengaterag.api.domain.search.errors import ChunkEmbeddingFailedError
-from opengaterag.api.domain.user.errors import StorageLimitExceededError
 from opengaterag.api.infrastructure.fastapi.routes import EndpointRoute
 from opengaterag.api.tests.integration.endpoints.conftest import API_KEY, AUTHENTICATED_USER_ID
 from opengaterag.api.use_cases.documents import CreateDocumentCommand, CreateDocumentUseCase, CreateDocumentUseCaseSuccess
@@ -57,7 +56,6 @@ class TestCreateDocument:
         "use_case_result,expected_status,expected_detail",
         [
             (CollectionNotFoundError(), 404, "Collection not found."),
-            (StorageLimitExceededError(), 413, "Storage limit exceeded."),
             (UnsupportedFileTypeError(), 415, "Unsupported file type. Upload a Markdown or plain text file."),
             (ChunkEmbeddingFailedError(), 502, "The embedding of the document failed."),
         ],

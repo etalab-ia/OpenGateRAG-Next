@@ -17,52 +17,18 @@ async def _add_collection(db_session, user_id: int = 42) -> int:
 
 
 class TestCreateDocument:
-    async def test_should_persist_document_with_its_size_and_metadata(self, db_session):
+    async def test_should_persist_document_with_its_metadata(self, db_session):
         # Arrange
         repository = PostgresDocumentRepository(postgres_session=db_session)
         collection_id = await _add_collection(db_session)
 
         # Act
-        document = await repository.create_document(collection_id=collection_id, name="report.md", size=120, metadata={"source_title": "Report", "year": 2030})  # fmt: off
+        document = await repository.create_document(collection_id=collection_id, name="report.md", metadata={"source_title": "Report", "year": 2030})  # fmt: off
 
         # Assert
         assert isinstance(document, Document)
         assert document.metadata == {"source_title": "Report", "year": 2030}
         assert document.created.tzinfo is not None
-        assert await db_session.scalar(select(DocumentTable.size).where(DocumentTable.id == document.id)) == 120
-
-
-class TestGetUsedStorage:
-    async def test_should_sum_document_sizes_across_collections_of_user_only(self, db_session):
-        # Arrange
-        repository = PostgresDocumentRepository(postgres_session=db_session)
-        first_collection_id = await _add_collection(db_session, user_id=42)
-        second_collection_id = await _add_collection(db_session, user_id=42)
-        other_user_collection_id = await _add_collection(db_session, user_id=43)
-        db_session.add_all(
-            [
-                DocumentTable(collection_id=first_collection_id, name="a.md", size=10),
-                DocumentTable(collection_id=second_collection_id, name="b.md", size=5),
-                DocumentTable(collection_id=other_user_collection_id, name="c.md", size=100),
-            ]
-        )
-        await db_session.flush()
-
-        # Act
-        used_storage = await repository.get_used_storage(user_id=42)
-
-        # Assert
-        assert used_storage == 15
-
-    async def test_should_return_zero_when_user_has_no_documents(self, db_session):
-        # Arrange
-        repository = PostgresDocumentRepository(postgres_session=db_session)
-
-        # Act
-        used_storage = await repository.get_used_storage(user_id=999_999)
-
-        # Assert
-        assert used_storage == 0
 
 
 class TestDeleteDocument:

@@ -4,7 +4,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from opengaterag.api.domain.document import DocumentRepository
 from opengaterag.api.domain.document.entities import Document, DocumentMetadata
 from opengaterag.api.domain.document.errors import DocumentNotFoundError
-from opengaterag.api.infrastructure.postgres.models import Collection as CollectionTable
 from opengaterag.api.infrastructure.postgres.models import Document as DocumentTable
 
 # Selected as table columns so that rows expose `metadata` under its column name, not the `metadata_` attribute.
@@ -15,8 +14,8 @@ class PostgresDocumentRepository(DocumentRepository):
     def __init__(self, postgres_session: AsyncSession):
         self.postgres_session = postgres_session
 
-    async def create_document(self, collection_id: int, name: str, size: int, metadata: DocumentMetadata) -> Document:
-        statement = insert(DocumentTable).values(collection_id=collection_id, name=name, size=size, metadata_=metadata).returning(*DOCUMENT_COLUMNS)  # fmt: off
+    async def create_document(self, collection_id: int, name: str, metadata: DocumentMetadata) -> Document:
+        statement = insert(DocumentTable).values(collection_id=collection_id, name=name, metadata_=metadata).returning(*DOCUMENT_COLUMNS)  # fmt: off
         row = (await self.postgres_session.execute(statement)).one()
 
         return Document.model_validate(row, from_attributes=True)
@@ -36,11 +35,6 @@ class PostgresDocumentRepository(DocumentRepository):
         rows = (await self.postgres_session.execute(statement)).all()
 
         return [Document.model_validate(row, from_attributes=True) for row in rows], total
-
-    async def get_used_storage(self, user_id: int) -> int:
-        statement = select(func.coalesce(func.sum(DocumentTable.size), 0)).join(CollectionTable).where(CollectionTable.user_id == user_id)
-
-        return await self.postgres_session.scalar(statement)
 
     async def delete_document(self, document_id: int) -> None | DocumentNotFoundError:
         statement = delete(DocumentTable).where(DocumentTable.id == document_id).returning(DocumentTable.id)

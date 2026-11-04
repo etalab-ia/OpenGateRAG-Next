@@ -14,7 +14,7 @@ from opengaterag.api.infrastructure.postgres import (
     PostgresDocumentRepository,
     PostgresUserRepository,
 )
-from opengaterag.api.infrastructure.text import LangChainTextSplitter, MarkdownDocumentParser, TiktokenTokenizer
+from opengaterag.api.infrastructure.text import LangChainTextSplitter, MarkdownDocumentParser
 from opengaterag.api.use_cases.collections import (
     CreateCollectionUseCase,
     DeleteCollectionUseCase,
@@ -93,17 +93,14 @@ def create_document_use_case_factory(
 
     return CreateDocumentUseCase(
         collection_query=PostgresCollectionQuery(postgres_session=postgres_session),
-        user_repository=PostgresUserRepository(postgres_session=postgres_session),
         document_repository=PostgresDocumentRepository(postgres_session=postgres_session),
         document_parser=MarkdownDocumentParser(),
-        tokenizer=TiktokenTokenizer(encoding_name=settings.storage_compute_tokenizer.removeprefix("tiktoken_")),
         text_splitter=LangChainTextSplitter(chunk_max_characters=settings.chunk_max_characters),
         chunk_index=MeilisearchChunkIndex(
             meilisearch_client=global_context.meilisearch_client,
             index_name=meilisearch.index_name,
             task_timeout=meilisearch.task_timeout,
         ),
-        storage_default_limit=settings.storage_default_limit,
     )
 
 

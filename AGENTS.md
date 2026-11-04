@@ -19,7 +19,7 @@ opengaterag/api/
     postgres/          models.py, Postgres*Repository / Postgres*Query
     meilisearch/       MeilisearchChunkIndex, index bootstrap, filter builder
     opengatellm/       OpenGateLLMAuthenticatedUserQuery (GET /v1/me)
-    text/              document parser (Markdown and plain text), text splitter (LangChain), tokenizer (tiktoken)
+    text/              document parser (Markdown and plain text), text splitter (LangChain)
     configuration.py   Settings + get_configuration(). Read lazily: never at import time outside main.py / alembic/env.py
     context.py         GlobalContext: process-wide handles (engine, shared httpx clients)
     logging.py         configure_logging(). Modules use logging.getLogger(__name__)
@@ -36,7 +36,7 @@ opengaterag/docs/      unified Swagger/ReDoc merging the OpenGateLLM schema (unc
 | Context | Entities / views | Ports → adapters |
 |---|---|---|
 | `collection` | `Collection`, `CollectionVisibility`, `CollectionView` (+ document count) | `CollectionRepository` → `PostgresCollectionRepository`, `CollectionQuery` → `PostgresCollectionQuery` |
-| `document` | `Document`, `Chunk` (internal value object, never exposed as a resource) | `DocumentRepository` → `PostgresDocumentRepository`, `DocumentParser`, `TextSplitter`, `Tokenizer` → `infrastructure/text/` |
+| `document` | `Document`, `Chunk` (internal value object, never exposed as a resource) | `DocumentRepository` → `PostgresDocumentRepository`, `DocumentParser`, `TextSplitter` → `infrastructure/text/` |
 | `search` | `SearchMethod`, `MetadataFilter`, `SearchResult` | `ChunkIndex` → `MeilisearchChunkIndex` |
 | `user` | `User` (storage limit, public-collection right), `AuthenticatedUserView` | `UserRepository` → `PostgresUserRepository`, `AuthenticatedUserQuery` → `OpenGateLLMAuthenticatedUserQuery` |
 
@@ -106,7 +106,7 @@ There are **no chunk endpoints**. Chunks are an internal detail of indexing: the
 
 Postgres is the source of truth for ownership and access. Meilisearch holds the searchable chunks. **Never hold a Postgres transaction open across a Meilisearch call**, because indexing waits on embedding.
 
-- **Create document:** check collection → parse → count tokens → check storage → split → insert row (committed) → index chunks. If indexing fails, enqueue a delete of the document's chunks, delete the row, and return the error.
+- **Create document:** check collection → parse → split → insert row (committed) → index chunks. If indexing fails, enqueue a delete of the document's chunks, delete the row, and return the error.
 - **Delete document or collection:** delete the chunks in Meilisearch and wait, **then** delete in Postgres. If the Postgres delete fails, the result is a document without chunks, which is visible and can be deleted again. The reverse order would leave chunks without a document: content the user believes is deleted but that search can still return.
 - **Update document:** update the chunks' `collection_id` and `metadata` in Meilisearch and wait, **then** update Postgres. If the Postgres update fails, sending the same `PATCH` again repairs it.
 
@@ -162,9 +162,9 @@ The first slice of each pattern. Copy it when adding the same kind of code. Path
 | Unit domain test | `tests/unit/domain/collection/test_collectionentities.py` |
 | Integration endpoint / Postgres tests | `tests/integration/endpoints/test_get_one_collection.py`, `tests/integration/postgres/` |
 | Meilisearch index bootstrap | `infrastructure/meilisearch/_meilisearchindexbootstrap.py` |
-| Use case writing to Postgres and Meilisearch | `use_cases/documents/_createdocumentusecase.py` (storage check before any write, compensation when embedding fails) |
+| Use case writing to Postgres and Meilisearch | `use_cases/documents/_createdocumentusecase.py` (compensation when embedding fails) |
 | Meilisearch adapter (task wait, `error.code` mapping) | `infrastructure/meilisearch/_meilisearchchunkindex.py` |
-| Text adapters (parser, splitter, tokenizer) | `infrastructure/text/` |
+| Text adapters (parser, splitter) | `infrastructure/text/` |
 | Multipart endpoint | `create_document` in `infrastructure/fastapi/endpoints/documents.py` (`CreateDocumentBody` declared with `File`, metadata as a JSON form field) |
 | DI factory on the autocommit session | `create_document_use_case_factory` in `dependencies.py` |
 | Integration Meilisearch test | `tests/integration/meilisearch/test_meilisearchchunkindex.py` |
@@ -213,4 +213,4 @@ ruff check --fix . && ruff format .
 
 ## Deferred to the end of the revamp
 
-- **Quota management and viewing usage.** Rethink the storage quota as a whole: what a document's size means and how it is counted, how `storage_limit` is enforced, and how a user sees their usage against their limit (one per-user "used / limit" figure, not a size on each collection). Collection responses deliberately carry no `size` until then.
+- **Quota management and viewing usage.** Rethink the storage quota as a whole: what a document's size means and how it is counted, how `storage_limit` is enforced, and how a user sees their usage against their limit (one per-user "used / limit" figure, not a size on each collection). Collection responses deliberately carry no `size` until then, and creating a document neither counts its tokens nor checks `storage_limit`.

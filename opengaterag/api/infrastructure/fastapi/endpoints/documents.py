@@ -4,14 +4,12 @@ from opengaterag.api.dependencies import create_document_use_case_factory, get_d
 from opengaterag.api.domain.collection.errors import CollectionNotFoundError
 from opengaterag.api.domain.document.errors import DocumentNotFoundError, UnsupportedFileTypeError
 from opengaterag.api.domain.search.errors import ChunkEmbeddingFailedError
-from opengaterag.api.domain.user.errors import StorageLimitExceededError
 from opengaterag.api.domain.user.views import AuthenticatedUserView
 from opengaterag.api.infrastructure.fastapi.accesscontroller import AccessController
 from opengaterag.api.infrastructure.fastapi.endpoints.exceptions import (
     ChunkEmbeddingFailedHTTPException,
     CollectionNotFoundHTTPException,
     DocumentNotFoundHTTPException,
-    StorageLimitExceededHTTPException,
     UnsupportedFileTypeHTTPException,
 )
 from opengaterag.api.infrastructure.fastapi.routes import EndpointRoute, RouterName
@@ -60,8 +58,6 @@ async def create_document(
             raise CollectionNotFoundHTTPException()
         case UnsupportedFileTypeError():
             raise UnsupportedFileTypeHTTPException()
-        case StorageLimitExceededError():
-            raise StorageLimitExceededHTTPException()
         case ChunkEmbeddingFailedError():
             raise ChunkEmbeddingFailedHTTPException()
 
