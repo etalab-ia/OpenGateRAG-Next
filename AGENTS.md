@@ -216,3 +216,4 @@ ruff check --fix . && ruff format .
 ## Deferred to the end of the revamp
 
 - **Quota management and viewing usage.** Rethink the storage quota as a whole: what a document's size means and how it is counted, how `storage_limit` is enforced, and how a user sees their usage against their limit (one per-user "used / limit" figure, not a size on each collection). Collection responses deliberately carry no `size` until then, and creating a document neither counts its tokens nor checks `storage_limit`.
+- **Cleanup when indexing raises.** Creating a document cleans up only when indexing returns an error. An exception (task timeout, unmapped error code, HTTP error) leaves the document even though the request failed.
